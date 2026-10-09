@@ -1,0 +1,334 @@
+[
+  {
+    "created": "2026-09-25T20:14:45.709918+00:00",
+    "modified": "2026-10-06T02:01:36.229408+00:00",
+    "id": 22967456,
+    "conceptrecid": "22967455",
+    "doi": "10.5281/zenodo.22967456",
+    "conceptdoi": "10.5281/zenodo.22967455",
+    "doi_url": "https://doi.org/10.5281/zenodo.22967456",
+    "metadata": {
+      "title": "Two Transit-like Signals in TESS Photometry of the Nearby K Dwarf TIC 4206066",
+      "doi": "10.5281/zenodo.22967456",
+      "publication_date": "2026-09-25",
+      "description": "<p>Preprint of a Research Note prepared for submission to the Research Notes of the AAS. Abstract: I report two transit-like signals in TESS photometry of the late-K dwarf TIC 4206066 (StKM 1-561), found in Sector 98 and traced back to Sectors 6 and 32. The 3.18 d signal (23 transits, ~500 ppm) corresponds to a 1.4 +/- 0.1 Earth-radius planet if it orbits the target. Vetting, localization, and Gaia astrometry, photometry, and radial velocities leave a planet transiting an unresolved bound companion as the main alternative host scenario; TRICERATOPS gives FPP = 0.03-0.04, mostly from companions these data disfavor. The lower-significance 11.13 d signal (~2.2 Earth radii if on the target; ~3 sigma in a post hoc test) is reported with a tentative ephemeris. No statistical validation is claimed. Supporting data and code: doi:10.5281/zenodo.22967099.</p>",
+      "access_right": "open",
+      "creators": [
+        {
+          "name": "Rabtsevich, Pavel",
+          "affiliation": "Independent Researcher",
+          "orcid": "0009-0005-0654-6658"
+        }
+      ],
+      "keywords": [
+        "TESS",
+        "TIC 4206066",
+        "exoplanet candidates",
+        "transit photometry"
+      ],
+      "related_identifiers": [
+        {
+          "identifier": "10.5281/zenodo.22967099",
+          "relation": "isSupplementedBy",
+          "resource_type": "dataset",
+          "scheme": "doi"
+        }
+      ],
+      "resource_type": {
+        "title": "Preprint",
+        "type": "publication",
+        "subtype": "preprint"
+      },
+      "license": {
+        "id": "cc-by-4.0"
+      },
+      "relations": {
+        "version": [
+          {
+            "index": 0,
+            "is_last": true,
+            "parent": {
+              "pid_type": "recid",
+              "pid_value": "22967455"
+            }
+          }
+        ]
+      }
+    },
+    "title": "Two Transit-like Signals in TESS Photometry of the Nearby K Dwarf TIC 4206066",
+    "links": {
+      "self": "https://zenodo.org/api/records/22967456",
+      "self_html": "https://zenodo.org/records/22967456",
+      "preview_html": "https://zenodo.org/records/22967456?preview=1",
+      "doi": "https://doi.org/10.5281/zenodo.22967456",
+      "self_doi": "https://doi.org/10.5281/zenodo.22967456",
+      "self_doi_html": "https://zenodo.org/doi/10.5281/zenodo.22967456",
+      "reserve_doi": "https://zenodo.org/api/records/22967456/draft/pids/doi",
+      "parent": "https://zenodo.org/api/records/22967455",
+      "parent_html": "https://zenodo.org/records/22967455",
+      "parent_doi": "https://doi.org/10.5281/zenodo.22967455",
+      "parent_doi_html": "https://zenodo.org/doi/10.5281/zenodo.22967455",
+      "self_iiif_manifest": "https://zenodo.org/api/iiif/record:22967456/manifest",
+      "self_iiif_sequence": "https://zenodo.org/api/iiif/record:22967456/sequence/default",
+      "files": "https://zenodo.org/api/records/22967456/files",
+      "media_files": "https://zenodo.org/api/records/22967456/media-files",
+      "thumbnails": {
+        "10": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E10,/0/default.jpg",
+        "50": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E50,/0/default.jpg",
+        "100": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E100,/0/default.jpg",
+        "250": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E250,/0/default.jpg",
+        "750": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E750,/0/default.jpg",
+        "1200": "https://zenodo.org/api/iiif/record:22967456:manuscript.pdf/full/%5E1200,/0/default.jpg"
+      },
+      "archive": "https://zenodo.org/api/records/22967456/files-archive",
+      "archive_media": "https://zenodo.org/api/records/22967456/media-files-archive",
+      "latest": "https://zenodo.org/api/records/22967456/versions/latest",
+      "latest_html": "https://zenodo.org/records/22967456/latest",
+      "versions": "https://zenodo.org/api/records/22967456/versions",
+      "draft": "https://zenodo.org/api/records/22967456/draft",
+      "access_links": "https://zenodo.org/api/records/22967456/access/links",
+      "access_grants": "https://zenodo.org/api/records/22967456/access/grants",
+      "access_users": "https://zenodo.org/api/records/22967456/access/users",
+      "access_request": "https://zenodo.org/api/records/22967456/access/request",
+      "access": "https://zenodo.org/api/records/22967456/access",
+      "communities": "https://zenodo.org/api/records/22967456/communities",
+      "communities-suggestions": "https://zenodo.org/api/records/22967456/communities-suggestions",
+      "request_deletion": "https://zenodo.org/api/records/22967456/request-deletion",
+      "file_modification": "https://zenodo.org/api/records/22967456/file-modification",
+      "quota_increase": "https://zenodo.org/api/records/22967456/quota-increase",
+      "requests": "https://zenodo.org/api/records/22967456/requests"
+    },
+    "updated": "2026-10-06T02:01:36.229408+00:00",
+    "recid": "22967456",
+    "revision": 4,
+    "files": [
+      {
+        "id": "b98a1b3f-f398-49ad-bf6e-03c1a90ece42",
+        "key": "manuscript.pdf",
+        "size": 116561,
+        "checksum": "md5:d407254ec6409544309165566570e777",
+        "links": {
+          "self": "https://zenodo.org/api/records/22967456/files/manuscript.pdf/content"
+        }
+      }
+    ],
+    "swh": {},
+    "owners": [
+      {
+        "id": "1901012"
+      }
+    ],
+    "status": "published",
+    "stats": {
+      "downloads": 558,
+      "unique_downloads": 540,
+      "views": 4729,
+      "unique_views": 4340,
+      "version_downloads": 558,
+      "version_unique_downloads": 540,
+      "version_unique_views": 4340,
+      "version_views": 4729
+    },
+    "state": "done",
+    "submitted": true
+  },
+  {
+    "created": "2026-10-06T01:14:14.412309+00:00",
+    "modified": "2026-10-06T01:14:15.030822+00:00",
+    "id": 23175179,
+    "conceptrecid": "23175178",
+    "doi": "10.5281/zenodo.23175179",
+    "conceptdoi": "10.5281/zenodo.23175178",
+    "doi_url": "https://doi.org/10.5281/zenodo.23175179",
+    "metadata": {
+      "title": "A Pre-registered TESS Sector 110 Test of Two Transit-like Signals in TIC 4206066",
+      "doi": "10.5281/zenodo.23175179",
+      "publication_date": "2026-10-06",
+      "description": "<p>This record pre-registers a test of two transit-like signals in TESS data of the nearby K dwarf TIC 4206066. Signal A repeats every 3.18 days. Signal B repeats every 11.13 days; it is more tentative and has less archival support. Both signals were selected after the archival data had been inspected, so those data are not an independent test.</p><p>TESS observes the star again in Sector 110, from 2026-10-31 to 2026-11-26, at 2-minute cadence. These data did not exist when the protocol was written, so they give an independent test. The protocol fixes in advance the predicted transit times (nine for A, three for B, with an uncertainty of about 4 minutes, 1\u03c3), the expected depths and the processing of the light curve. A fixed rule gives each signal one of four outcomes: recovered, inconsistent, excluded, or insufficient data. The protocol also fixes a timing check and a pixel-level check of whether the position of signal A is compatible with TIC 4206066. Frozen code computes the outcomes; the protocol text decides which runs and inputs are valid.</p><p>Start with PREREG_S110_SHORT.pdf, a three-page summary with one figure. The full protocol, PREREG_S110_FINAL.pdf, gives the exact rules and takes precedence. The ZIP file contains the frozen code, the software environment, the calibrations, the archival test runs, checksums and the LaTeX source. Recovering a signal in Sector 110 would not prove that it is a planet, and an undecided result would not show that it is not.</p>",
+      "access_right": "open",
+      "creators": [
+        {
+          "name": "Rabtsevich, Pavel",
+          "affiliation": "Independent Researcher, Tarragona, Spain",
+          "orcid": "0009-0005-0654-6658"
+        }
+      ],
+      "keywords": [
+        "TESS",
+        "TIC 4206066",
+        "pre-registration",
+        "transit photometry",
+        "transit-like signals",
+        "exoplanet candidates",
+        "Sector 110",
+        "transit timing"
+      ],
+      "related_identifiers": [
+        {
+          "identifier": "10.5281/zenodo.22967456",
+          "relation": "references",
+          "resource_type": "publication-preprint",
+          "scheme": "doi"
+        },
+        {
+          "identifier": "10.5281/zenodo.22967099",
+          "relation": "references",
+          "resource_type": "dataset",
+          "scheme": "doi"
+        },
+        {
+          "identifier": "https://tess.mit.edu/observations/sector-110/",
+          "relation": "references",
+          "resource_type": "other",
+          "scheme": "url"
+        },
+        {
+          "identifier": "https://tess.mit.edu/science/ddt/",
+          "relation": "references",
+          "resource_type": "other",
+          "scheme": "url"
+        },
+        {
+          "identifier": "10.5281/zenodo.23171456",
+          "relation": "obsoletes",
+          "resource_type": "publication-other",
+          "scheme": "doi"
+        }
+      ],
+      "version": "1.1",
+      "language": "eng",
+      "resource_type": {
+        "title": "Other",
+        "type": "publication",
+        "subtype": "other"
+      },
+      "license": {
+        "id": "cc-by-4.0"
+      },
+      "relations": {
+        "version": [
+          {
+            "index": 0,
+            "is_last": true,
+            "parent": {
+              "pid_type": "recid",
+              "pid_value": "23175178"
+            }
+          }
+        ]
+      }
+    },
+    "title": "A Pre-registered TESS Sector 110 Test of Two Transit-like Signals in TIC 4206066",
+    "links": {
+      "self": "https://zenodo.org/api/records/23175179",
+      "self_html": "https://zenodo.org/records/23175179",
+      "preview_html": "https://zenodo.org/records/23175179?preview=1",
+      "doi": "https://doi.org/10.5281/zenodo.23175179",
+      "self_doi": "https://doi.org/10.5281/zenodo.23175179",
+      "self_doi_html": "https://zenodo.org/doi/10.5281/zenodo.23175179",
+      "reserve_doi": "https://zenodo.org/api/records/23175179/draft/pids/doi",
+      "parent": "https://zenodo.org/api/records/23175178",
+      "parent_html": "https://zenodo.org/records/23175178",
+      "parent_doi": "https://doi.org/10.5281/zenodo.23175178",
+      "parent_doi_html": "https://zenodo.org/doi/10.5281/zenodo.23175178",
+      "self_iiif_manifest": "https://zenodo.org/api/iiif/record:23175179/manifest",
+      "self_iiif_sequence": "https://zenodo.org/api/iiif/record:23175179/sequence/default",
+      "files": "https://zenodo.org/api/records/23175179/files",
+      "media_files": "https://zenodo.org/api/records/23175179/media-files",
+      "thumbnails": {
+        "10": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E10,/0/default.jpg",
+        "50": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E50,/0/default.jpg",
+        "100": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E100,/0/default.jpg",
+        "250": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E250,/0/default.jpg",
+        "750": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E750,/0/default.jpg",
+        "1200": "https://zenodo.org/api/iiif/record:23175179:PREREG_S110_FINAL.pdf/full/%5E1200,/0/default.jpg"
+      },
+      "archive": "https://zenodo.org/api/records/23175179/files-archive",
+      "archive_media": "https://zenodo.org/api/records/23175179/media-files-archive",
+      "latest": "https://zenodo.org/api/records/23175179/versions/latest",
+      "latest_html": "https://zenodo.org/records/23175179/latest",
+      "versions": "https://zenodo.org/api/records/23175179/versions",
+      "draft": "https://zenodo.org/api/records/23175179/draft",
+      "access_links": "https://zenodo.org/api/records/23175179/access/links",
+      "access_grants": "https://zenodo.org/api/records/23175179/access/grants",
+      "access_users": "https://zenodo.org/api/records/23175179/access/users",
+      "access_request": "https://zenodo.org/api/records/23175179/access/request",
+      "access": "https://zenodo.org/api/records/23175179/access",
+      "communities": "https://zenodo.org/api/records/23175179/communities",
+      "communities-suggestions": "https://zenodo.org/api/records/23175179/communities-suggestions",
+      "request_deletion": "https://zenodo.org/api/records/23175179/request-deletion",
+      "file_modification": "https://zenodo.org/api/records/23175179/file-modification",
+      "quota_increase": "https://zenodo.org/api/records/23175179/quota-increase",
+      "requests": "https://zenodo.org/api/records/23175179/requests"
+    },
+    "updated": "2026-10-06T01:14:15.030822+00:00",
+    "recid": "23175179",
+    "revision": 3,
+    "files": [
+      {
+        "id": "153303f8-ceda-4170-8c23-af3a21335b53",
+        "key": "PREREG_S110_FINAL.pdf",
+        "size": 259631,
+        "checksum": "md5:12d16e859d2c101fb28c69e8209d558b",
+        "links": {
+          "self": "https://zenodo.org/api/records/23175179/files/PREREG_S110_FINAL.pdf/content"
+        }
+      },
+      {
+        "id": "d2fa4759-4245-4652-991f-4c5c3a3a9fa9",
+        "key": "PREREG_S110_SHORT.pdf",
+        "size": 161761,
+        "checksum": "md5:6622f11ac57c831042022dd515808188",
+        "links": {
+          "self": "https://zenodo.org/api/records/23175179/files/PREREG_S110_SHORT.pdf/content"
+        }
+      },
+      {
+        "id": "c51a5b47-4924-486c-80f9-2dde96718d02",
+        "key": "SHA256SUMS.txt",
+        "size": 14496,
+        "checksum": "md5:7a2aca087d7cb94ac987453695ee9486",
+        "links": {
+          "self": "https://zenodo.org/api/records/23175179/files/SHA256SUMS.txt/content"
+        }
+      },
+      {
+        "id": "1919136d-3239-4008-adfe-6d09ac39dddd",
+        "key": "README.md",
+        "size": 8364,
+        "checksum": "md5:60a2abcf0f7cb01ba743ff8e76cb01d0",
+        "links": {
+          "self": "https://zenodo.org/api/records/23175179/files/README.md/content"
+        }
+      },
+      {
+        "id": "b531e4bb-4af1-4191-9f00-ac09110cfcfb",
+        "key": "tic4206066_S110_prereg_final.zip",
+        "size": 13824518,
+        "checksum": "md5:bf056d035ec93bd0cb9aeb185c85cac0",
+        "links": {
+          "self": "https://zenodo.org/api/records/23175179/files/tic4206066_S110_prereg_final.zip/content"
+        }
+      }
+    ],
+    "swh": {},
+    "owners": [
+      {
+        "id": "1901012"
+      }
+    ],
+    "status": "published",
+    "stats": {
+      "downloads": 212,
+      "unique_downloads": 188,
+      "views": 1569,
+      "unique_views": 1450,
+      "version_downloads": 212,
+      "version_unique_downloads": 188,
+      "version_unique_views": 1450,
+      "version_views": 1569
+    },
+    "state": "done",
+    "submitted": true
+  }
+]
