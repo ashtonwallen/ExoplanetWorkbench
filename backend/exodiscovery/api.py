@@ -18,7 +18,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="EXODISCOVERY", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Exoplanet Search Workbench", version="0.1.0", lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
 
 

@@ -52,7 +52,7 @@ export default function App(){
   const nav = [{id:'overview',label:'Overview',icon:Activity},{id:'workbench',label:'Star explorer',icon:Telescope},{id:'candidates',label:'Investigations',icon:Orbit},{id:'queue',label:'Research queue',icon:Layers},{id:'research',label:'Automated research',icon:FlaskConical},{id:'chat',label:'AI assistant',icon:MessageSquare}] as const
 
   return <div className="app-shell">
-    <aside className="nav"><div className="brand"><span className="brand-mark"><Orbit size={25}/></span><div>EXODISCOVERY<small>RESEARCH WORKBENCH</small></div></div>
+    <aside className="nav"><div className="brand"><span className="brand-mark"><Orbit size={25}/></span><div>EXOPLANET<small>SEARCH WORKBENCH</small></div></div>
       <div className="nav-label">WORKSPACE</div>{nav.map(n=><button key={n.id} className={'nav-item '+(view===n.id?'active':'')} onClick={()=>setView(n.id)}><n.icon size={18}/>{n.label}{n.id==='queue'&&active.length>0&&<span className="nav-count">{active.length}</span>}</button>)}
       <div className="nav-bottom"><div className="storage"><Database size={16}/><div>Local archive<small>{fmt(stats.cache_mb||0,1)} MB cached</small></div></div><button className={'nav-item '+(view==='settings'?'active':'')} onClick={()=>setView('settings')}><Settings2 size={18}/>AI settings</button><div className="connection"><i className={online?'online':''}/>{online?'Local backend connected':'Connecting to backend…'}<span>v0.1</span></div></div>
     </aside>

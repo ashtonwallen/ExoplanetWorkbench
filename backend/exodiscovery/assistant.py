@@ -13,7 +13,7 @@ from .schemas import AIConfig, Analysis, Search, CandidateRef, Injection, Alias
 
 ENDPOINTS = {"openai": "https://api.openai.com/v1", "anthropic": "https://api.anthropic.com/v1",
              "gemini": "https://generativelanguage.googleapis.com/v1beta/openai", "openrouter": "https://openrouter.ai/api/v1"}
-SYSTEM = """You are EXODISCOVERY's research assistant. Use only returned deterministic tool results for numerical claims.
+SYSTEM = """You are the research assistant for an exoplanet search workbench. Use only returned deterministic tool results for numerical claims.
 Never invent observations, catalog matches, tested hypotheses, job completion, or sources. Distinguish evidence,
 calculations, interpretations and hypotheses. Refer to investigation IDs, product identifiers and actual test results.
 An absent or failed test is not a pass. S/N is not planet probability. A catalog match is not a new discovery.
@@ -203,7 +203,7 @@ def turn(cfg, transcript, specs):
 
 def connection_test():
     cfg = config().model_copy(update={"max_output_tokens": 256})
-    msg, _, usage = turn(cfg, [{"role": "user", "content": "Reply with: EXODISCOVERY connection verified"}], [])
+    msg, _, usage = turn(cfg, [{"role": "user", "content": "Reply with: connection verified"}], [])
     return {"ok": True, "reply": redact(msg["content"]), "usage": usage}
 
 

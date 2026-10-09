@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Start EXODISCOVERY on http://127.0.0.1:8765")
+    parser = argparse.ArgumentParser(description="Start Exoplanet Search Workbench on http://127.0.0.1:8765")
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--setup-only", action="store_true")
     parser.add_argument("--rebuild", action="store_true")
@@ -56,7 +56,7 @@ def main():
         try:
             msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
         except OSError:
-            raise SystemExit("Another EXODISCOVERY launcher is using this data directory.")
+            raise SystemExit("Another launcher is using this data directory.")
     else:
         import fcntl
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -74,13 +74,13 @@ def main():
                 break
             except OSError:
                 time.sleep(.3)
-        print("EXODISCOVERY: http://127.0.0.1:8765  (Ctrl+C to stop)", flush=True)
+        print("Exoplanet Search Workbench: http://127.0.0.1:8765  (Ctrl+C to stop)", flush=True)
         if not args.no_browser:
             webbrowser.open("http://127.0.0.1:8765")
         while server.poll() is None and worker.poll() is None:
             time.sleep(.5)
     except KeyboardInterrupt:
-        print("Stopping EXODISCOVERY. Interrupted jobs can be resumed.", flush=True)
+        print("Stopping Exoplanet Search Workbench. Interrupted jobs can be resumed.", flush=True)
     finally:
         # On Windows children do not receive terminate signals recursively. The worker
         # observes this stop file and exits through its cleanup handler.

@@ -16,7 +16,7 @@ def report(ident):
     r = store.investigation(ident)
     esc = lambda value: html.escape(str(value))
     chunks = [f"<!doctype html><html lang='en'><meta charset='utf-8'><title>{esc(r['target'])} investigation</title><style>body{{font:15px system-ui;max-width:1100px;margin:40px auto;padding:20px;color:#17212b}}h1,h2{{letter-spacing:-.03em}}table{{border-collapse:collapse;width:100%;margin:20px 0}}td,th{{border:1px solid #ddd;text-align:left;padding:9px}}pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5f7;padding:20px;font-size:11px}}img{{max-width:100%}}.note{{border-left:4px solid #b37618;padding:12px;background:#fff8e9}}@media print{{body{{margin:0}}h2{{break-after:avoid}}img{{break-inside:avoid}}}}</style><body>",
-              f"<h1>EXODISCOVERY / {esc(r['target'])}</h1><p>Investigation {ident} · {esc(r['created'])}</p>",
+              f"<h1>Exoplanet Search Workbench / {esc(r['target'])}</h1><p>Investigation {ident} · {esc(r['created'])}</p>",
               "<p class='note'>Exploratory transit investigation. No new planet is confirmed or statistically validated by this report. All times are BJD_TDB, not UTC calendar dates.</p>",
               f"<p>{r['cadences']:,} usable cadences; {r['baseline_days']:.3f} day span; {len(r['provenance'])} observations.</p>"]
     for s in r["signals"]:

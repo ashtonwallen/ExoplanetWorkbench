@@ -1,4 +1,4 @@
-# EXODISCOVERY
+# Exoplanet Search Workbench
 
 A local astronomical workbench for downloading calibrated observations, finding periodic transit-like signals, and preserving the evidence needed to investigate them. Scientific calculations work without an AI provider.
 
