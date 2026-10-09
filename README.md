@@ -2,6 +2,10 @@
 
 A local astronomical workbench for downloading calibrated observations, finding periodic transit-like signals, and preserving the evidence needed to investigate them. Scientific calculations work without an AI provider.
 
+![WASP-18 light curve from TESS Sector 2, with 27 transits of WASP-18 b](docs/screenshots/photometry.png)
+
+![Folded WASP-18 b transit with the fitted transit model](docs/screenshots/transit-analysis.png)
+
 ## Start
 
 Requirements: **Python 3.11–3.13**, **Node.js 20+**, and an internet connection for public archives. Windows is the tested platform.
