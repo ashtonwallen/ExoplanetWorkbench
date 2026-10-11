@@ -25,7 +25,7 @@ def main():
     if not python.exists():
         print("Creating Python environment…", flush=True)
         venv.create(ROOT / ".venv", with_pip=True)
-    check = subprocess.run([str(python), "-c", "import exodiscovery,fastapi,lightkurve,batman,setuptools"], capture_output=True)
+    check = subprocess.run([str(python), "-c", "import exodiscovery,fastapi,lightkurve,batman,setuptools,mcp"], capture_output=True)
     if check.returncode:
         subprocess.run([str(python), "-m", "pip", "install", "-e", ".[test]"], check=True)
     if args.rebuild or not (ROOT / "frontend/dist/index.html").exists():

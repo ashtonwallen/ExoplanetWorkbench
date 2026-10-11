@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import store, pipeline, assistant, reports
-from .schemas import Analysis, Search, Batch, CandidateRef, Injection, Alias, AIConfig, Chat, ResearchGoal
+from .schemas import Analysis, Search, Batch, CandidateRef, Injection, Alias, AIConfig, Chat, ResearchGoal, TargetDiscovery
 
 
 @asynccontextmanager
@@ -104,6 +104,11 @@ def tic(cfg: Search):
 @app.post("/api/analyze")
 def analyze(cfg: Analysis):
     return store.create_job("analysis", cfg.model_dump())
+
+
+@app.post('/api/discover')
+def discover_targets(cfg: TargetDiscovery):
+    return store.create_job('discovery', cfg.model_dump())
 
 
 @app.post("/api/batch")

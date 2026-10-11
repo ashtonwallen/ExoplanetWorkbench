@@ -14,7 +14,7 @@ All observational examples below used public archive data, not embedded fixtures
 
 ## Automated checks
 
-- **34 offline tests passed**: transit injection/search, multiple detrending controls, sector discontinuities, deliberately failing eclipsing-binary checks, missing-data behavior, host/period associations, no duplicate cadence selection, batman fit, configuration validation, quality-bitmask selection, time-system rejection, atomic queue claims, restart/resume state, cancellation, saved checkpoint reuse, browser-origin/host protection, credential redaction, local endpoint constraints, unsupported-tool rejection, provider tool protocol round trips, and pre-request budget enforcement.
+- **44 offline tests passed**: transit injection/search, multiple detrending controls, sector discontinuities, deliberately failing eclipsing-binary checks, missing-data behavior, host/period associations, no duplicate cadence selection, batman fit, configuration validation, quality-bitmask selection, time-system rejection, atomic queue claims, restart/resume state, cancellation, saved checkpoint reuse, browser-origin/host protection, credential redaction, local endpoint constraints, unsupported-tool rejection, provider tool protocol round trips, and pre-request budget enforcement.
 - **One separate live integration test passed**: downloads real WASP-18 data, independently measures its period, and requires an actual NASA known-planet association.
 - **Five Playwright browser tests passed**: real plots and evidence, provider settings and archive search, persistent investigation reopening, queue access and narrow viewport overflow.
 - TypeScript checking and the optimized Vite production build passed.
@@ -27,6 +27,13 @@ All observational examples below used public archive data, not embedded fixtures
 - TIC 219093943 was selected from those real query results. Its Sector 56 FITS file was downloaded under the new cumulative input allowance: **2,039,040 bytes**, **19,612** quality-filtered cadences. A 0.5?8-day search returned a strongest period of **6.6657405338 days**, classified **Likely false positive**. No planet discovery was claimed. The retained investigation is `a32872af19884cec`.
 - Nine additional offline tests cover deduplicated sector ranking/filtering, archive failure versus absence, configuration/credential boundaries, mandatory plan and evidence review, text-only completion rejection, spending checks before provider calls, cumulative persistent FITS-byte limits, operation/target quotas and stable replay IDs, and a complete scripted-provider loop that executes the actual deterministic science pipeline on explicitly synthetic test observations. The last test interrupts the provider after science is saved, resumes, reads the saved evidence and completes without creating a duplicate investigation.
 - Two additional browser tests cover the real automated-mode configuration/limits interface and a browser-only scripted run for submission, chosen parameters, findings, report links and stop/resume. Scripted fixtures never enter the application database. Production build and screenshots were checked.
+
+## MCP verification
+
+- **10 additional offline cases passed**, including real SDK client/server protocol sessions against the API and isolated SQLite store, typed scientific input rejection, job submission/poll/cancel/resume, quota enforcement, exclusion of internal AI/chat jobs, saved evidence/resources, bounded numeric pagination, queued regional discovery, a real stdio subprocess initialized from an unrelated working directory, loopback restrictions, and HTTP Host/Origin protection.
+- A real stdio MCP client submitted a new WASP-18 Sector 2 analysis to the running worker, waited for completion, and read evidence, numerical folded-curve data and report links through MCP. Investigation `3cbd35b8ce3a4224` recovered **0.9414608208045275 days** from **18,299** quality-filtered cadences and received the actual NASA **Known planet** association.
+- A separate real Streamable HTTP client initialized at `http://127.0.0.1:8766/mcp`, listed all **17 tools**, and read application health and saved investigations.
+- These are protocol and scientific checks, not a claim that a Claude Desktop or LM Studio model completed an autonomous conversation. No external client's settings or API keys were modified. The generated client configuration and a repeatable smoke-check script are included.
 
 ## Limits of verification
 

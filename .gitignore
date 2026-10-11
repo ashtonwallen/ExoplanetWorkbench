@@ -10,6 +10,7 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/tsconfig.tsbuildinfo
 .env
+mcp-config.local.json
 # added 2026-10-09 (projects cleanup)
 .env.*
 !.env.example

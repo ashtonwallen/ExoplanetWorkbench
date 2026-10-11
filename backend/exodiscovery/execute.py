@@ -15,6 +15,10 @@ def run(ident):
             result = archive.search(cfg.target, cfg.mission)
         elif job["kind"] == "tic":
             result = archive.tic(job["params"]["target"])
+        elif job['kind']=='discovery':
+            from .discovery import discover
+            from .schemas import TargetDiscovery
+            result=discover(TargetDiscovery(**job['params']),lambda text:pipeline.checkpoint(ident,text))
         elif job["kind"] == "chat":
             from .assistant import investigate
             result = investigate(job["params"], ident)

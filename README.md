@@ -100,6 +100,16 @@ A regional request triggers real filtered **TIC catalog** queries and **MAST SPO
 
 A cloud model receives the prompt and requested tool results. Keys remain in the local OS credential store. There is no arbitrary code-execution tool. A model cannot mark the run complete merely by writing that it finished: it must save a plan, execute a real evidence tool, read every newly created investigation, and submit a structured assessment. Scientific classifications remain computed by the pipeline; the final AI assessment is labeled as interpretation and should be checked against the linked evidence. Provider availability and tool-calling reliability can still interrupt a run.
 
+## MCP: research from Claude or a local model
+
+The application now exposes **17 typed MCP tools** for target discovery, observations, configurable analysis, validation, numeric plot previews, durable job control and reports. The external MCP host runs its own research loop; it does not need an AI provider configured inside the workbench.
+
+1. Keep `python run.py` running.
+2. Run `.venv\Scripts\python mcp_server.py --print-config` and merge the generated entry into Claude Desktop or your local MCP client's configuration.
+3. Ask the connected assistant to recover WASP-18 first, then investigate your own target or bounded sky region. Its jobs and results appear in the web workbench.
+
+Stdio and loopback-only Streamable HTTP are supported. See **[MCP setup and tool guide](docs/mcp.md)** for Claude Desktop, LM Studio, limits and real protocol verification commands.
+
 ## Scientific boundaries
 
 This is the functioning first vertical slice, not a planet-validation pipeline equivalent to the full cited study.
