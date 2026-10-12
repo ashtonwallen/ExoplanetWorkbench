@@ -33,6 +33,38 @@ def robust_sigma(y):
     return max(float(1.4826 * np.median(np.abs(y - np.median(y)))), 1e-8)
 
 
+def acquisition_edges(t, sectors, window_days):
+    """Compute on original quality-filtered cadences, BEFORE any search masks."""
+    edge = np.zeros(len(t), dtype=bool)
+    for sec in np.unique(sectors):
+        idx = np.flatnonzero(sectors == sec)
+        for segment in np.split(idx, np.flatnonzero(np.diff(t[idx]) > .3) + 1):
+            if len(segment):
+                edge[segment] = ((t[segment] - t[segment[0]] < window_days/2) |
+                                 (t[segment[-1]] - t[segment] < window_days/2))
+    return edge
+
+
+def consistency(measurements):
+    """Descriptive formal-error checks, not calibrated rejection probabilities."""
+    good = [m for m in measurements if m['status'] == 'measured' and
+            m.get('error_ppm') is not None and m['error_ppm'] > 0]
+    if len(good) < 2:
+        return {'status': 'inconclusive', 'count': len(good), 'max_pair_sigma': None,
+                'minimum_leave_one_out_snr': None}
+    depth = np.array([m['depth_ppm'] for m in good])
+    error = np.array([m['error_ppm'] for m in good])
+    pair = max(abs(depth[i]-depth[j])/np.hypot(error[i], error[j])
+               for i in range(len(good)) for j in range(i))
+    weights = 1/error**2
+    totals = weights.sum() - weights
+    loo = (np.sum(weights*depth) - weights*depth) / np.sqrt(totals)
+    combined = float(np.sum(weights*depth)/np.sqrt(weights.sum()))
+    return {'status': 'measured', 'count': len(good), 'max_pair_sigma': float(pair),
+            'combined_formal_snr': combined, 'minimum_leave_one_out_snr': float(loo.min()),
+            'caveat': 'Formal independent errors; shared baselines, correlated noise and multiple comparisons are not calibrated.'}
+
+
 def preprocess(t, f, e, sectors, method="median", window_days=1.5, mask=None):
     """Independent normalization per sector and continuous segment; no lower clipping.
 
@@ -156,8 +188,10 @@ def diagnostics(t, y, e, sectors, signal):
             measurement['status'] = 'incomplete_coverage'
         events.append({"cycle": int(n), "predicted_bjd": float(epoch+n*p), **measurement})
     observed = sum(v["status"] == "measured" for v in events)
+    sector_consistency = consistency(per_sector)
+    event_consistency = consistency(events)
     tests = [
-        {"name": "Repeated events", "status": "pass" if observed >= 3 else "inconclusive", "detail": f"{observed} events with ≥70% estimated coverage, ≥3 in-transit points, and baseline on both sides."},
+        {"name": "Covered transit windows", "status": "pass" if observed >= 3 else "inconclusive", "detail": f"{observed} predicted windows with >=70% estimated coverage, >=3 in-transit points, and baseline on both sides. Coverage does not establish a detected dip."},
         {"name": "Odd / even depths", "status": "inconclusive" if odd_even is None else ("flag" if odd_even > 3 else "pass"),
          "detail": "Alternating depths: " + (f"{odd_even:.2f} formal sigma difference." if odd_even is not None else "not enough samples."), "sigma": odd_even},
         {"name": "Secondary eclipse at phase 0.5", "status": "inconclusive" if secondary["snr"] is None else ("flag" if secondary["snr"] > 5 else "pass"),
@@ -168,8 +202,20 @@ def diagnostics(t, y, e, sectors, signal):
         {"name": "Transit timing variation", "status": "not_run", "detail": "Individual event depths are measured; individual transit times have not been fitted."},
         {"name": "Statistical false-positive probability", "status": "not_run", "detail": "No calibrated false-alarm rate or astrophysical false-positive probability computed."},
     ]
+    tests.extend([
+        {'name': 'Sector depth consistency', 'status': 'inconclusive' if sector_consistency['count'] < 2 else
+         'flag' if sector_consistency['max_pair_sigma'] > 5 else 'measured',
+         'detail': 'Maximum sector depth difference: '+str(sector_consistency['max_pair_sigma'])+
+         ' formal sigma. >5 is a review heuristic, not a calibrated probability.'},
+        {'name': 'Single-event dominance', 'status': 'inconclusive' if event_consistency['count'] < 3 else
+         'flag' if event_consistency['combined_formal_snr'] >= 7 and event_consistency['minimum_leave_one_out_snr'] < 3 else 'measured',
+         'detail': 'Minimum combined depth S/N after omitting one covered event: '+
+         str(event_consistency['minimum_leave_one_out_snr'])+'. Formal independent-error heuristic.'},
+    ])
     return {"tests": tests, "odd": odd, "even": even, "odd_even_sigma": odd_even,
-            "secondary": secondary, "sectors": per_sector, "events": events, "observed_transits": observed}
+            "secondary": secondary, "sectors": per_sector, "events": events, "observed_transits": observed,
+            "covered_transit_windows": observed, "event_count_semantics": "Well-covered predicted windows, not individually detected dips",
+            "sector_consistency": sector_consistency, "event_consistency": event_consistency}
 
 
 def fit_transit(t, y, e, signal):
@@ -245,12 +291,21 @@ def classify(signal, catalog):
     diag = signal["validation"]
     if (diag["odd_even_sigma"] or 0) > 3 or (diag["secondary"]["snr"] or 0) > 5:
         return "Likely false positive"
-    if any(v['status']=='flag' for v in diag['tests'] if v['name'] in ['Preprocessing sensitivity','Data-gap proximity','Search boundary']):
+    if any(v['status']=='flag' for v in diag['tests'] if v['name'] in [
+            'Preprocessing sensitivity','Data-gap proximity','Search boundary','Sector depth consistency',
+            'Single-event dominance','Transit fit','Fixed-ephemeris holdout']):
         return 'Insufficient evidence'
     complete = all(catalog.get("records", {}).get(k, {}).get("status") == "complete" for k in ["confirmed", "toi"])
     if signal["depth_snr"] < 7 or diag["observed_transits"] < 3 or signal["grid_capped"] or not complete:
         return "Insufficient evidence"
     return "Interesting unclassified transit signal"
+
+
+def evidence_summary(signal):
+    tests = signal.get('validation', {}).get('tests', [])
+    return {name: [t['name'] for t in tests if t['status'] in statuses] for name, statuses in
+            [('flags', ('flag',)), ('unfinished', ('not_run', 'unavailable')),
+             ('inconclusive', ('inconclusive',)), ('measured', ('measured', 'pass'))]}
 
 
 def bin_phase(t, y, e, period, epoch, n=160):

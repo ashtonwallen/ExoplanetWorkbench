@@ -12,6 +12,7 @@ class Search(StrictModel):
 
 
 class Analysis(Search):
+    allow_partial_sectors: bool = False
     sectors: list[int] = Field(default_factory=list, max_length=30)
     max_products: int = Field(default=2, ge=1, le=30)
     min_period: float = Field(default=0.5, ge=0.2, le=100)
@@ -47,6 +48,7 @@ class CandidateRef(StrictModel):
 
 
 class Injection(CandidateRef):
+    duration_hours: float | None = Field(default=None, gt=0, le=24)
     trials: int = Field(default=6, ge=2, le=40)
     depth_ppm: float = Field(default=1000, ge=50, le=50000)
     period: float = Field(default=3.18, ge=0.2, le=100)
@@ -55,6 +57,19 @@ class Injection(CandidateRef):
 
 class Alias(CandidateRef):
     period: float = Field(gt=0.1, le=200)
+
+
+class Pixels(CandidateRef):
+    sector: int | None = Field(default=None, ge=1)
+    cadence_seconds: int = Field(default=120, ge=20, le=1800)
+
+
+class HeldOut(CandidateRef):
+    comparison_id: str = Field(pattern=r"^[a-f0-9]{16}$")
+
+
+class CatalogRefresh(CandidateRef):
+    force_refresh: bool = True
 
 
 class AIConfig(StrictModel):
@@ -90,6 +105,7 @@ class ResearchGoal(StrictModel):
 
 
 class TargetDiscovery(StrictModel):
+    exclude_known_hosts: bool = False
     region: Literal['compare_poles', 'north_pole', 'south_pole', 'custom'] = 'compare_poles'
     ra: float | None = Field(default=None, ge=0, lt=360)
     dec: float | None = Field(default=None, ge=-90, le=90)

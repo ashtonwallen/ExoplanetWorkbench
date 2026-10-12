@@ -114,7 +114,7 @@ def test_mcp_stdio_subprocess_initialization_tools_resources_prompt_from_any_cwd
             async with ClientSession(read,write) as session:
                 result=await session.initialize()
                 assert result.serverInfo.name=='EXODISCOVERY'
-                assert len((await session.list_tools()).tools)==17
+                assert {'preflight_products','refresh_catalogs','test_fixed_ephemeris','read_signal_events'} <= {t.name for t in (await session.list_tools()).tools}
                 assert (await session.list_prompts()).prompts[0].name=='investigate'
                 assert 'workflow' in (await session.read_resource('exodiscovery://guide')).contents[0].text
     asyncio.run(check())

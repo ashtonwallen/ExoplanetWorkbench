@@ -4,6 +4,7 @@ import html
 import io
 import json
 import zipfile
+import numpy as np
 from pathlib import Path
 
 from . import store, pipeline
@@ -37,10 +38,56 @@ def report(ident):
         fig.savefig(buf, format="png", dpi=140)
         plt.close(fig)
         chunks.append(f"<img alt='Light curve, BLS periodogram and folded transit for signal {s['index']+1}' src='data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}'>")
+        # Keep the full-range plot above; explicitly label the clipped detail view.
+        fig, axes = plt.subplots(2, 1, figsize=(11, 5), constrained_layout=True)
+        for ax, x, values, label in [(axes[0], np.asarray(plot['time'])-2457000, plot['flux'], 'BJD_TDB - 2457000 (days)'),
+                                      (axes[1], np.asarray(plot['phase'])*24, plot['fold_flux'], 'Hours from BLS mid-transit')]:
+            values = np.asarray(values, dtype=float)
+            ax.scatter(x, values, s=1, alpha=.3)
+            finite = values[np.isfinite(values)]
+            if len(finite):
+                lo, hi = np.quantile(finite, [.01, .99])
+                pad = max((hi-lo)*.15, 1e-6)
+                ax.set_ylim(lo-pad, hi+pad)
+                omitted = int(((values < lo-pad) | (values > hi+pad)).sum())
+                ax.set_title(f'Flux detail: {omitted} plotted samples outside vertical range', fontsize=9)
+            ax.set(xlabel=label, ylabel='Relative flux')
+        axes[1].set_xlim(-2*s['duration_hours'], 2*s['duration_hours'])
+        axes[1].errorbar(np.asarray(plot['binned']['phase'])*24, plot['binned']['flux'],
+                         yerr=plot['binned']['error'], fmt='.', color='#183b46', ms=4)
+        if s['fit'].get('flux'):
+            axes[1].plot(np.asarray(s['fit']['phase_days'])*24, s['fit']['flux'], color='#bc7825')
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=140)
+        plt.close(fig)
+        chunks.append(f"<img alt='Robust flux detail; full range shown above' src='data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}'>")
         chunks.append(f"<p>{esc(s['uncertainties'])}</p><p>{esc(s['radius_assumption'])}</p><table><tr><th>Diagnostic</th><th>Status</th><th>Evidence / limitations</th></tr>")
         for test in s["validation"]["tests"]:
             chunks.append(f"<tr><td>{esc(test['name'])}</td><td>{esc(test['status'])}</td><td>{esc(test['detail'])}</td></tr>")
         chunks.append("</table>")
+        for followup in s.get('followups', []):
+            result = followup['result']
+            chunks.append('<h3>'+esc(followup['kind'])+' follow-up</h3>')
+            if followup['kind'] == 'pixels' and result.get('status') == 'measured':
+                fig, axes = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+                for ax, key, label in zip(axes, ('mean_image', 'difference_image'), ('Out-of-transit mean', 'Out minus in transit')):
+                    values = np.asarray(result[key], dtype=float)
+                    kwargs = {}
+                    if key == 'difference_image' and np.isfinite(values).any():
+                        bound = max(float(np.nanmax(np.abs(values))), 1e-12)
+                        kwargs = {'vmin': -bound, 'vmax': bound, 'cmap': 'RdBu_r'}
+                    im = ax.imshow(values, origin='lower', **kwargs)
+                    mask = np.asarray(result['aperture'])
+                    if mask.min() != mask.max():
+                        ax.contour(mask, levels=[.5], colors='orange', linewidths=.8)
+                    ax.set(title=label, xlabel='Cutout column (pixels)', ylabel='Cutout row (pixels)')
+                    fig.colorbar(im, ax=ax, label='Flux (electrons / second)')
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', dpi=140)
+                plt.close(fig)
+                chunks.append(f"<img alt='Pixel maps with orange SPOC aperture outline' src='data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}'>")
+            from .evidence import compact_evidence
+            chunks.append('<pre>'+esc(json.dumps(compact_evidence(result), indent=2))+'</pre>')
         chunks.append("<h3>Fit assumptions</h3><p>"+esc(s["fit"].get("assumptions", s["fit"]["status"]))+"</p>")
         chunks.append("<h3>Catalog associations</h3><pre>"+esc(json.dumps(s["catalog_matches"], indent=2))+"</pre>")
     chunks.append("<h2>Unresolved alternatives and limitations</h2><ul>"+"".join("<li>"+esc(x)+"</li>" for x in r["limitations"])+"</ul>")
@@ -102,10 +149,15 @@ for saved in r['signals']:
         included = {p['local_file'] for p in r['provenance']}
         for s in r['signals']:
             for f in s.get('followups',[]):
-                provenance = f['result'].get('provenance')
-                if provenance and provenance.get('local_file') not in included:
-                    z.write(store.DATA/'observations'/provenance['local_file'],'observations/'+provenance['local_file'])
-                    included.add(provenance['local_file'])
+                provenance = f['result'].get('provenance') or []
+                for product in provenance if isinstance(provenance, list) else [provenance]:
+                    if product.get('local_file') and product['local_file'] not in included:
+                        z.write(store.DATA/'observations'/product['local_file'],'observations/'+product['local_file'])
+                        included.add(product['local_file'])
+                if f['kind'] == 'holdout':
+                    comparison = f['result']['comparison_id']
+                    for name in ('result.json', 'lightcurve.npz'):
+                        z.write(store.DATA/'artifacts'/comparison/name, 'holdout-data/'+comparison+'/'+name)
                 snapshot = store.DATA/'artifacts'/f['job_id']/'source'
                 if snapshot.exists():
                     for p in snapshot.rglob('*'):

@@ -13,6 +13,10 @@ def run(ident):
             cfg = Search(**job["params"])
             pipeline.checkpoint(ident, "Querying MAST", .1)
             result = archive.search(cfg.target, cfg.mission)
+        elif job['kind'] == 'preflight':
+            cfg = Analysis(**job['params'])
+            pipeline.checkpoint(ident, 'Checking available light-curve products', .1)
+            result = archive.product_manifest(archive.search(cfg.target, cfg.mission), cfg.sectors, cfg.max_products)
         elif job["kind"] == "tic":
             result = archive.tic(job["params"]["target"])
         elif job['kind']=='discovery':

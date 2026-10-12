@@ -7,6 +7,12 @@ import time
 from . import store
 
 
+def remote_stage_timeout(stage, seconds):
+    prefixes = ('Searching ', 'Querying MAST', 'Checking available light-curve',
+                'Comparing TESS coverage', 'Comparing known-host', 'Cross-referencing NASA')
+    return stage.startswith(prefixes) and seconds > 180
+
+
 def main():
     store.init()
     store.recover()
@@ -27,16 +33,22 @@ def main():
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             start = time.monotonic()
             limit = active["params"].get("timeout_seconds", 1800)
+            last_stage, stage_started = None, start
             while child.poll() is None:
                 if stop_file.exists():
                     return
                 job = store.get_job(active["id"])
-                if job["cancel"] or time.monotonic()-start > limit:
+                if job['stage'] != last_stage:
+                    last_stage, stage_started = job['stage'], time.monotonic()
+                stalled = remote_stage_timeout(job['stage'], time.monotonic()-stage_started)
+                if job["cancel"] or time.monotonic()-start > limit or stalled:
                     child.terminate()
                     child.wait(timeout=15)
                     status = "cancelled" if job["cancel"] else "interrupted"
                     store.update_job(job["id"], status=status, stage="Stopped; saved downloads and completed artifacts retained",
-                                     error=None if job["cancel"] else "Time limit reached. Resume or narrow the search.")
+                                     error=None if job["cancel"] else
+                                     f"Remote stage exceeded 180 seconds: {job['stage']}. Cached inputs retained; resume explicitly." if stalled else
+                                     "Time limit reached. Resume or narrow the search.")
                     break
                 time.sleep(.5)
             job = store.get_job(active["id"])

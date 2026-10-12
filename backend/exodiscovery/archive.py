@@ -78,6 +78,18 @@ def select_products(search_result, sectors, limit):
     return list(selected.values())[:limit]
 
 
+def product_manifest(found, sectors, limit):
+    selected = select_products(found, sectors, limit)
+    available = select_products(found, sectors, max(1, len(found['products'])))
+    used = {p['sector'] for p in selected}
+    possible = {p['sector'] for p in available}
+    missing = [{'sector': s, 'reason': 'product_limit' if s in possible else 'no_matching_lightcurve'}
+               for s in dict.fromkeys(sectors) if s not in used]
+    return {'requested_sectors': sectors, 'selected_sectors': sorted(used, key=lambda x: x or 0),
+            'missing_sectors': missing, 'products': selected, 'complete': not missing,
+            'selection': 'Nearest archive target; one cadence per sector, preferring 120 seconds; ascending sector order.'}
+
+
 def download(product, max_bytes, notify=lambda s: None):
     from .allowance import current
     allowance = current.get()
@@ -104,6 +116,7 @@ def download(product, max_bytes, notify=lambda s: None):
                         if size > max_bytes:
                             raise ValueError("Download budget exceeded")
                         f.write(chunk)
+                        notify(f"Downloading {product['filename']}: {size/1024**2:.1f} MB")
             with tmp.open('rb') as verify:
                 if verify.read(6) != b'SIMPLE':
                     raise ValueError('Archive response is not a FITS product; response was not cached')
@@ -158,7 +171,7 @@ def tap(query):
     return r.json(), r.url
 
 
-def catalogs(ra, dec, tic_id=None):
+def catalogs(ra, dec, tic_id=None, force_refresh=False):
     key = f"catalogs:{ra:.6f}:{dec:.6f}:{tic_id}"
     def fetch():
         result = {"queried_at": store.now(), "ra": ra, "dec": dec, "cone_arcsec": 30, "records": {}}
@@ -187,7 +200,24 @@ def catalogs(ra, dec, tic_id=None):
             result["exofop_url"] = f"https://exofop.ipac.caltech.edu/tess/target.php?id={int(tic_id)}"
         result["follow_up_status"] = "not_reviewed"
         return result
-    return cached(key+":v2", fetch)
+    return cached(key+":v2", fetch, hours=0 if force_refresh else 24)
+
+
+def catalog_host_status(catalog, ra, dec, tic_id):
+    from astropy.coordinates import SkyCoord
+    center = SkyCoord(ra, dec, unit='deg')
+    matches = []
+    for kind, record in catalog.get('records', {}).items():
+        for row in record.get('rows', []):
+            tid = str(row.get('tid', row.get('tic_id', ''))).replace('TIC', '').strip().split('.')[0]
+            same_id = tic_id is not None and tid == str(tic_id)
+            same_position = (row.get('ra') is not None and row.get('dec') is not None and
+                             center.separation(SkyCoord(row['ra'], row['dec'], unit='deg')).arcsec < 3)
+            if same_id or same_position:
+                matches.append({'catalog': kind, 'record': row})
+    complete = all(catalog.get('records', {}).get(k, {}).get('status') == 'complete' for k in ('confirmed', 'toi'))
+    return {'status': 'known_host' if matches else 'empty' if complete else 'unavailable',
+            'matches': matches, 'comparison_complete': complete}
 
 
 def tic(target):
@@ -200,17 +230,23 @@ def tic(target):
 
 
 def gaia(ra, dec):
-    query = ("SELECT TOP 100 source_id,ra,dec,phot_g_mean_mag,parallax,pmra,pmdec,ruwe "
+    query = ("SELECT TOP 101 source_id,ra,dec,phot_g_mean_mag,parallax,pmra,pmdec,ruwe "
              "FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),"
-             f"CIRCLE('ICRS',{float(ra)},{float(dec)},0.0333333333))")
+             f"CIRCLE('ICRS',{float(ra)},{float(dec)},0.0333333333)) "
+             f"ORDER BY DISTANCE(POINT('ICRS',ra,dec),POINT('ICRS',{float(ra)},{float(dec)})),source_id")
     url = "https://gea.esac.esa.int/tap-server/tap/sync"
     r = requests.get(url, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "json", "QUERY": query}, timeout=90)
     r.raise_for_status()
     payload = r.json()
     names = [m["name"] for m in payload["metadata"]]
     data = [dict(zip(names, row)) for row in payload["data"]]
+    truncated = len(data) > 100
+    data = data[:100]
+    from astropy.coordinates import SkyCoord
+    center = SkyCoord(ra, dec, unit='deg')
     for row in data:
         row["source_id"] = str(row["source_id"])
-        row["separation_arcsec"] = float(3600 * np.hypot((row["ra"] - ra) * np.cos(np.deg2rad(dec)), row["dec"] - dec))
+        row["separation_arcsec"] = float(center.separation(SkyCoord(row['ra'], row['dec'], unit='deg')).arcsec)
     return {"queried_at": store.now(), "source": url, "query": query, "rows": sorted(data, key=lambda r: r["separation_arcsec"]),
+            "truncated": truncated, "limit": 100, "ordering": "Angular separation at catalog epoch, then source ID",
             "caveat": "Gaia DR3 positions are epoch 2016; proper motions are listed, not propagated. G is not TESS magnitude. Unresolved companions and incomplete faint sources remain possible."}

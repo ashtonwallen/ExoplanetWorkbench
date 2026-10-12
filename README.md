@@ -102,7 +102,7 @@ A cloud model receives the prompt and requested tool results. Keys remain in the
 
 ## MCP: research from Claude or a local model
 
-The application now exposes **17 typed MCP tools** for target discovery, observations, configurable analysis, validation, numeric plot previews, durable job control and reports. The external MCP host runs its own research loop; it does not need an AI provider configured inside the workbench.
+The application now exposes **22 typed MCP tools** for target discovery, observations, configurable analysis, validation, numeric plot previews, durable job control and reports. The external MCP host runs its own research loop; it does not need an AI provider configured inside the workbench.
 
 1. Keep `python run.py` running.
 2. Run `.venv\Scripts\python mcp_server.py --print-config` and merge the generated entry into Claude Desktop or your local MCP client's configuration.
@@ -120,11 +120,13 @@ This is the functioning first vertical slice, not a planet-validation pipeline e
 - Radius uses `sqrt(box depth) × catalog stellar radius × 109.076`. Its unknown stellar/dilution uncertainty is disclosed. No reliable orbital mass or absolute distance is invented.
 - Broad, year-separated BLS searches are capped at **150,000 periods before allocation**. Capped searches are labeled incomplete because narrow peaks can be missed. Narrow the period range, test a proposed period, and compare separate sectors. No claim of exhaustive multi-year sensitivity is made.
 - Quality-filtered data are not clipped on the low-flux side. The trend window must be at least five times the maximum searched duration. Gap/edge and boundary diagnostics can invalidate a promising interpretation. Preprocessing controls are fixed-ephemeris depth comparisons, not independent searches.
-- Sector agreement is measured at the combined ephemeris, not held-out-year prediction. Independent individual transit-time fitting and pre-registration management are future work.
+- Sector agreement and leave-one-event-out depth checks are formal-error heuristics. `test_fixed_ephemeris` measures a frozen period, epoch and duration on disjoint sectors from a second saved investigation. Those data were previously searched: this is not a blinded test, and timing uncertainty is not propagated. Individual transit-time fitting and pre-registration management remain future work.
 - Pixel tests compute an exploratory out-minus-in image and aperture-depth comparison. They do **not** perform a calibrated PRF fit, pointing decorrelation or centroid uncertainty calculation and cannot establish the host star. Gaia positions are not propagated from their catalog epoch; G magnitudes are not TESS magnitudes. Unresolved companions remain possible.
-- Injection recovery uses box signals at one period/depth, random phases, and masks previously found events. It estimates conditional residual sensitivity, not a population completeness curve or a false-positive probability.
+- Injection recovery preserves the supplied duration (or the saved signal duration), uses box signals at one period/depth and random phases, and masks previously found events. Trials with fewer than three covered predicted windows are reported as unobservable, with injected-cadence counts and separate recovery denominators. It estimates conditional residual sensitivity, not a population completeness curve or a false-positive probability.
 - TESS input currently supports **SPOC calibrated light curves**, not QLP/TESS-SPOC FFI light curves, TESScut photometric extraction, or a survey of every star in the full-frame images. Kepler/K2 adapters use public calibrated light curves but were not live-verified during this build.
 - NASA confirmed planets and TOIs are queried automatically. ExoFOP is linked for manual review; community TOIs, TCE catalogs, follow-up observations and the literature are not exhaustively ingested. “Unclassified” does not mean “previously unreported.”
+
+See [implemented workflow improvements and remaining work](docs/improvements.md).
 
 The next substantial additions are broader survey selection beyond bounded TIC/SPOC cones; multi-sector frequency refinement with injection-calibrated completeness; independent transit timings; PRF-based localization; expanded catalog/follow-up ingestion; physical posterior inference; longer survey orchestration; and an inferred-system 3D view. These are deliberately not represented as functioning controls in this version.
 

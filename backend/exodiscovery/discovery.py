@@ -60,7 +60,7 @@ def rank_targets(stars, observations, cfg):
 
 
 def discover(cfg: TargetDiscovery, notify=lambda _:None):
-    key = 'target-discovery:v2:'+json.dumps(cfg.model_dump(),sort_keys=True)
+    key = 'target-discovery:v3:'+json.dumps(cfg.model_dump(),sort_keys=True)
     def fetch():
         regions = {'north_pole':('North ecliptic pole',270.,66.5607),
                    'south_pole':('South ecliptic pole',90.,-66.5607)}
@@ -74,7 +74,27 @@ def discover(cfg: TargetDiscovery, notify=lambda _:None):
                 ranked = rank_targets(stars,observations,cfg)
                 item.update(status='complete', filtered_catalog_stars=len(stars), observation_rows=len(observations),
                             eligible_observed_stars=len(ranked), returned_stars=min(cfg.limit,len(ranked)))
-                for target in ranked[:cfg.limit]:
+                excluded, unavailable = [], []
+                shortlist = []
+                for target in ranked[:cfg.limit*3] if cfg.exclude_known_hosts else ranked[:cfg.limit]:
+                    if cfg.exclude_known_hosts:
+                        notify('Comparing known-host catalogs: '+target['target'])
+                        catalog = archive.catalogs(target['ra'], target['dec'], target['tic_id'])
+                        status = archive.catalog_host_status(catalog, target['ra'], target['dec'], target['tic_id'])
+                        target['catalog_status'] = status['status']
+                        target['catalog_comparison'] = catalog
+                        if status['status'] == 'known_host':
+                            excluded.append({'target': target['target'], **status})
+                            continue
+                        if status['status'] == 'unavailable':
+                            unavailable.append({'target': target['target'], **status})
+                            continue
+                    shortlist.append(target)
+                    if len(shortlist) == cfg.limit:
+                        break
+                item.update(returned_stars=len(shortlist), excluded_known_hosts=excluded,
+                            catalog_unavailable=unavailable, catalog_check_limit=cfg.limit*3 if cfg.exclude_known_hosts else 0)
+                for target in shortlist:
                     targets.append({**target,'region':label})
             except Exception as exc:
                 item.update(status='unavailable',error=type(exc).__name__,eligible_observed_stars=None)
@@ -89,12 +109,12 @@ def discover(cfg: TargetDiscovery, notify=lambda _:None):
                 'limitations':['Compared only the listed bounded cones, not the whole sky.',
                     'Sector count, brightness and radius are observing/sensitivity proxies, not probabilities of planets.',
                     'SPOC target selection is biased; metadata coverage does not guarantee usable photometry.',
-                    'Known planets and TOIs are checked by subsequent analysis; targets are not yet established as uncataloged.',
+                    'Optional host exclusion checks at most three times the requested limit per region; unavailable comparisons are excluded conservatively. Empty comparison is not exhaustive literature novelty.',
                     'Catalog radii, contamination and stellar variability need verification.']}
     old = store.cache_get(key)
     if old:
         from datetime import datetime, timezone
-        if all(r['status']=='complete' for r in old['payload']['regions']) and (datetime.now(timezone.utc)-datetime.fromisoformat(old['created'])).total_seconds()<86400:
+        if all(r['status']=='complete' and not r.get('catalog_unavailable') for r in old['payload']['regions']) and (datetime.now(timezone.utc)-datetime.fromisoformat(old['created'])).total_seconds()<86400:
             return old['payload']
     result = fetch()
     store.cache_put(key,result)

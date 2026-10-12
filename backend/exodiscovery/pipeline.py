@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from . import archive, science, store
-from .schemas import Analysis, Injection, CandidateRef, Alias
+from .schemas import Analysis, Injection, CandidateRef, Alias, Pixels, HeldOut, CatalogRefresh
 
 
 class Cancelled(Exception):
@@ -43,7 +43,11 @@ def analyze(config: Analysis, job_id=None, artifact_id=None):
     shutil.copy2(Path(__file__).resolve().parents[2] / 'pyproject.toml', source / 'pyproject.toml')
     checkpoint(job_id, f"Searching {config.mission}: {config.target}", .05)
     found = archive.search(config.target, config.mission)
-    products = archive.select_products(found, config.sectors, config.max_products)
+    manifest = archive.product_manifest(found, config.sectors, config.max_products)
+    products = manifest['products']
+    if not manifest['complete'] and not config.allow_partial_sectors:
+        raise ValueError('Requested sectors unavailable or excluded by max_products: '+
+                         json.dumps(manifest['missing_sectors'])+'. Use preflight_products or explicitly allow_partial_sectors.')
     if not products:
         raise ValueError("No calibrated light curves found for the selected target/sectors. TESS currently uses SPOC products; FFI extraction is not included.")
     arrays, provenance = [], []
@@ -77,6 +81,7 @@ def analyze(config: Analysis, job_id=None, artifact_id=None):
     atomic_json(folder / "inputs.json", {"config": config.model_dump(), "provenance": provenance, "catalogs": cat})
     signals = []
     excluded = np.zeros(len(t), dtype=bool)
+    acquisition_edge = science.acquisition_edges(t, sectors, config.window_days)
     for attempt in range(config.max_signals + 3):
         k = len(signals)
         if k >= config.max_signals:
@@ -103,10 +108,14 @@ def analyze(config: Analysis, job_id=None, artifact_id=None):
             excluded |= np.abs(science.phase(t, signal["period"], signal["epoch_bjd"])) < signal["duration_hours"] / 24
             continue
         signal["index"] = k
+        mask = np.abs(science.phase(t, signal['period'], signal['epoch_bjd'])) < signal['duration_hours']/24
         signal["masked_previous_signals"] = list(range(k))
         signal["validation"] = science.diagnostics(t[use], y[use], err[use], sectors[use], signal)
         checkpoint(job_id, f"Fitting transit shape and testing preprocessing for signal {k+1}")
         signal["fit"] = science.fit_transit(t[use], y[use], err[use], signal)
+        signal['validation']['tests'].append({'name': 'Transit fit',
+            'status': 'measured' if signal['fit']['status'] == 'fitted' else 'flag',
+            'detail': 'Conditional shape fit status: '+signal['fit']['status']+'. This is not a posterior or planet validation.'})
         signal["catalog_matches"] = science.crossmatch(signal, cat, star["ra"], star["dec"], star["tic_id"])
         signal["radius_earth_estimate"] = None
         radius = star.get("stellar_radius_solar")
@@ -121,16 +130,17 @@ def analyze(config: Analysis, job_id=None, artifact_id=None):
         signal["preprocessing_checks"] = variants
         med, sg = variants[0], variants[1]
         unstable = med['snr'] is None or sg['snr'] is None or min(med['snr'],sg['snr']) < 5 or abs(med['depth_ppm']-sg['depth_ppm']) > max(abs(med['depth_ppm']),abs(sg['depth_ppm']))*.5
+        original_discrepancy = any(v['depth_ppm'] is not None and
+            abs(signal['depth_ppm']-v['depth_ppm']) > .5*max(abs(signal['depth_ppm']), abs(v['depth_ppm']))
+            for v in (med, sg))
+        unstable |= original_discrepancy
+        signal['preprocessing_original_depth_discrepancy'] = original_discrepancy
         signal["validation"]["tests"].append({"name": "Preprocessing sensitivity", "status": "flag" if unstable else "measured",
-            "detail": "Fixed-ephemeris depths from median, Savitzky–Golay, and normalization only. Flagged if either detrended S/N <5 or their depths differ by >50%; a heuristic sensitivity check, not independent blind recovery."})
+            "detail": "Fixed-ephemeris depths from median, Savitzky-Golay, and normalization only. Flagged if either detrended S/N <5, their depths differ by >50%, or either differs from the searched depth by >50%; heuristic, not independent blind recovery."})
         transit_mask = np.abs(science.phase(t[use],signal['period'],signal['epoch_bjd'])) < signal['duration_hours']/48
-        edge = np.zeros(use.sum(),bool)
-        used_t, used_sector = t[use], sectors[use]
-        for sec in np.unique(used_sector):
-            idx = np.flatnonzero(used_sector==sec)
-            for segment in np.split(idx,np.flatnonzero(np.diff(used_t[idx])>.3)+1):
-                edge[segment] = (used_t[segment]-used_t[segment].min()<config.window_days/2) | (used_t[segment].max()-used_t[segment]<config.window_days/2)
+        edge = acquisition_edge[use]
         edge_fraction = float((transit_mask & edge).sum()/max(1,transit_mask.sum()))
+        signal['validation']['acquisition_edge_fraction'] = edge_fraction
         signal['validation']['tests'].append({'name':'Data-gap proximity','status':'flag' if edge_fraction>.5 else 'measured',
             'detail':f'{edge_fraction:.1%} of in-transit samples lie within half a trend window of segment edges (>0.3-day gaps); edge-dominated signals need reanalysis.'})
         boundary = signal['duration_hours'] >= config.max_duration*.98 or signal['duration_hours'] <= config.min_duration*1.02 or min(abs(signal['period']/config.min_period-1),abs(signal['period']/config.max_period-1))<.002
@@ -140,13 +150,14 @@ def analyze(config: Analysis, job_id=None, artifact_id=None):
         signal["uncertainties"] = "BLS depth error assumes independent residuals. Grid spacing is resolution, not period uncertainty. Period/epoch posterior uncertainties, red-noise calibration, and survey false-alarm rate have not been computed."
         if signal["grid_capped"]:
             signal["validation"]["tests"].append({"name": "Period-grid completeness", "status": "flag", "detail": "150,000-point resource cap reached. Long-baseline narrow peaks can be missed; narrow the period range or analyze sectors separately."})
+        signal['evidence_summary'] = science.evidence_summary(signal)
         np.savez_compressed(folder / f"periodogram_{k}.npz", period=periodogram[0], power=periodogram[1])
         signals.append(science.clean_json(signal))
         excluded |= np.abs(science.phase(t, signal["period"], signal["epoch_bjd"])) < signal["duration_hours"] / 24
         if signal["depth_snr"] < 5:
             break
     result = science.clean_json({"id": ident, "target": config.target, "created": store.now(), "star": star,
-              "config": config.model_dump(), "provenance": provenance, "catalogs": cat, "signals": signals,
+              "config": config.model_dump(), "product_manifest": manifest, "provenance": provenance, "catalogs": cat, "signals": signals,
               "cadences": len(t), "baseline_days": float(np.ptp(t)), "software": science.versions(),
               "source_hashes": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (source/'backend'/'exodiscovery').glob('*.py')},
               "python_version": sys.version,
@@ -199,25 +210,80 @@ def plots(ident, index=0):
             "period": pg["period"][peaks], "power": pg["power"][peaks], "total_points": len(t), "shown_points": len(chosen)})
 
 
+def heldout_measurement(original, signal, comparison_id):
+    comparison = store.investigation(comparison_id)
+    left, right = original['star'].get('tic_id'), comparison['star'].get('tic_id')
+    same_target = left is not None and right is not None and str(left) == str(right)
+    if left is None or right is None:
+        same_target = original['target'].strip().lower() == comparison['target'].strip().lower()
+    if not same_target or original['config']['mission'] != comparison['config']['mission']:
+        raise ValueError('Holdout must use the same target and mission')
+    overlap = {p['sector'] for p in original['provenance']} & {p['sector'] for p in comparison['provenance']}
+    if overlap:
+        raise ValueError('Holdout sectors must be disjoint from the original observations')
+    a = load_arrays(comparison_id)
+    cfg = Analysis(**original['config'])
+    frozen = {k: signal[k] for k in ('period', 'epoch_bjd', 'duration_hours')}
+    ph = science.phase(a['time'], frozen['period'], frozen['epoch_bjd'])
+    duration = frozen['duration_hours']/24
+    y, e, _, _ = science.preprocess(a['time'], a['flux'], a['flux_error'], a['sector'],
+                                    cfg.detrend, cfg.window_days, np.abs(ph) < duration)
+    measurement = science.depth_measure(y, e, np.abs(ph) < duration/2,
+        (np.abs(ph) > duration) & (np.abs(ph) < min(3*duration, frozen['period']/3)))
+    validation = science.diagnostics(a['time'], y, e, a['sector'], frozen)
+    observable = validation['covered_transit_windows'] >= 3 and measurement['status'] == 'measured'
+    expected_snr = signal['depth_ppm']/measurement['error_ppm'] if measurement['error_ppm'] else None
+    inconsistent = observable and expected_snr >= 7 and measurement['snr'] < 3
+    return {'status': 'flag' if inconsistent else 'measured' if observable else 'inconclusive',
+            'comparison_id': comparison_id, 'frozen_ephemeris': frozen, 'measurement': measurement,
+            'validation': validation, 'expected_formal_snr_at_original_depth': expected_snr,
+            'provenance': comparison['provenance'], 'config': cfg.model_dump(),
+            'interpretation': 'Period, epoch and duration frozen; raw comparison flux independently detrended. '+
+                ('Predicted-depth signal not recovered despite nominal sensitivity; review required. ' if inconsistent else '')+
+                'Comparison sectors are disjoint. Data were previously searched; this is not a blinded experiment. '+
+                'Timing uncertainty, correlated noise and detection thresholds are not calibrated.'}
+
+
 def followup(params, kind, job_id, operation_id=None):
-    ref = Injection(**params) if kind == "injection" else Alias(**params) if kind == "alias" else CandidateRef(**params)
+    cls = {'injection': Injection, 'alias': Alias, 'pixels': Pixels, 'holdout': HeldOut, 'catalog': CatalogRefresh}.get(kind, CandidateRef)
+    ref = cls(**params)
     r = store.investigation(ref.investigation_id)
     s = r["signals"][ref.signal_index]
-    if operation_id:
-        prior = next((f for f in s.get('followups',[]) if f.get('operation_id')==operation_id and f['job_id']==job_id),None)
-        if prior:
-            return prior
-    a = load_arrays(r["id"])
+    prior = next((f for f in s.get('followups',[]) if f.get('operation_id')==operation_id and f['job_id']==job_id),None)
+    if prior:
+        atomic_json(store.DATA / 'artifacts' / r['id'] / 'result.json', r)
+        return prior
+    a = load_arrays(r["id"]) if kind in ('alias', 'injection', 'holdout') else None
     checkpoint(job_id, f"Running {kind} analysis", .1)
     if kind == "gaia":
         result = archive.gaia(r["star"]["ra"], r["star"]["dec"])
+    elif kind == 'catalog':
+        star = r['star']
+        result = archive.catalogs(star['ra'], star['dec'], star.get('tic_id'), force_refresh=ref.force_refresh)
+        r.setdefault('catalog_history', []).append(r['catalogs'])
+        r['catalogs'] = result
+        for signal in r['signals']:
+            signal['catalog_matches'] = science.crossmatch(signal, result, star['ra'], star['dec'], star.get('tic_id'))
+            signal['classification'] = science.classify(signal, result)
+            signal['evidence_summary'] = science.evidence_summary(signal)
+    elif kind == 'holdout':
+        result = heldout_measurement(r, s, ref.comparison_id)
     elif kind == "alias":
         config = Analysis(**r["config"])
         config.min_period, config.max_period = ref.period*.99, ref.period*1.01
         config.max_duration = min(config.max_duration, config.min_period*24*.8)
-        signal, _ = science.search_bls(a["time"], a["processed"], a["error"], config,
+        if config.max_duration <= config.min_duration:
+            raise ValueError('Alias period is too short for the saved duration range')
+        keep = np.ones(len(a['time']), dtype=bool)
+        for previous in r['signals'][:ref.signal_index]:
+            for masked in [previous, *previous.get('same_period_residuals', [])]:
+                keep &= np.abs(science.phase(a['time'], masked['period'], masked['epoch_bjd'])) >= masked['duration_hours']/24
+        if keep.sum() < 200:
+            raise ValueError('Too few cadences remain for alias comparison')
+        signal, _ = science.search_bls(a["time"][keep], a["processed"][keep], a["error"][keep], config,
                                      np.linspace(config.min_period, config.max_period, 1201))
-        result = {"search": signal, "validation": science.diagnostics(a["time"], a["processed"], a["error"], a["sector"], signal)}
+        result = {"search": signal, 'masked_previous_signals': list(range(ref.signal_index)),
+                  "validation": science.diagnostics(a["time"][keep], a["processed"][keep], a["error"][keep], a["sector"][keep], signal)}
     elif kind == "injection":
         config = Analysis(**r["config"])
         if not config.min_period <= ref.period <= config.max_period:
@@ -228,26 +294,48 @@ def followup(params, kind, job_id, operation_id=None):
         for existing in r["signals"]:
             keep &= np.abs(science.phase(a["time"], existing["period"], existing["epoch_bjd"])) > existing["duration_hours"] / 24
         t, f, e, sectors = [a[k][keep] for k in ["time", "flux", "flux_error", "sector"]]
-        duration = min(s["duration_hours"]/24, ref.period*.08)
+        duration = (ref.duration_hours if ref.duration_hours is not None else s['duration_hours'])/24
+        if duration >= ref.period or not config.min_duration <= duration*24 <= config.max_duration:
+            raise ValueError('Injection duration must be shorter than the period and within the saved searched duration range')
+        if len(t) < 200:
+            raise ValueError('Fewer than 200 cadences remain after masking existing signals')
         trials = []
         for i in range(ref.trials):
             checkpoint(job_id, f"Injection recovery {i+1}/{ref.trials}", .1+.8*i/ref.trials)
             epoch = float(t.min()+rng.uniform(0, ref.period))
             injected = f.copy()
-            injected[np.abs(science.phase(t, ref.period, epoch)) < duration/2] *= 1-ref.depth_ppm/1e6
-            y, er, _, _ = science.preprocess(t, injected, e, sectors, config.detrend, config.window_days)
+            inside = np.abs(science.phase(t, ref.period, epoch)) < duration/2
+            injected[inside] *= 1-ref.depth_ppm/1e6
+            coverage = science.diagnostics(t, np.ones(len(t)), np.ones(len(t)), sectors,
+                {'period': ref.period, 'epoch_bjd': epoch, 'duration_hours': duration*24})
+            trial = {'epoch': epoch, 'injected_cadences': int(inside.sum()),
+                     'covered_transit_windows': coverage['covered_transit_windows'],
+                     'recovered_period': None, 'snr': None, 'recovered': False}
+            if coverage['covered_transit_windows'] < 3:
+                trials.append({**trial, 'status': 'unobservable'})
+                continue
+            # Preserve acquisition segmentation during detrending; search masks
+            # exclude known signals from trend input, not the original time axis.
+            full_injected = a['flux'].copy()
+            full_injected[keep] = injected
+            full_y, full_er, _, _ = science.preprocess(a['time'], full_injected, a['flux_error'],
+                a['sector'], config.detrend, config.window_days, mask=~keep)
+            y, er = full_y[keep], full_er[keep]
             recovered, _ = science.search_bls(t, y, er, config)
             match = abs(recovered["period"]/ref.period-1) < .01
             phase_match = abs(float(science.phase([recovered["epoch_bjd"]], ref.period, epoch)[0])) < duration
-            trials.append({"epoch": epoch, "recovered_period": recovered["period"], "snr": recovered["depth_snr"],
+            trials.append({**trial, 'status': 'searched', "recovered_period": recovered["period"], "snr": recovered["depth_snr"],
                            "recovered": bool(match and phase_match and recovered["depth_snr"] >= 7)})
         count = sum(t["recovered"] for t in trials)
+        observable = sum(t['status'] == 'searched' for t in trials)
         result = {"trials": trials, "recovered": count, "total": ref.trials, "fraction": count/ref.trials,
+                  'observable_trials': observable, 'unobservable_trials': ref.trials-observable,
+                  'observable_fraction': count/observable if observable else None,
                   "parameters": ref.model_dump(), "duration_hours": duration*24,
                   "caveat": "Box injections into quality-filtered PDCSAP before detrending, random phase, previous signals masked. Conditional sensitivity at one period/depth, not survey completeness or a false-positive probability."}
     elif kind == "pixels":
         from .pixels import inspect_pixels
-        result = inspect_pixels(r, s, job_id)
+        result = inspect_pixels(r, s, job_id, sector=ref.sector, cadence_seconds=ref.cadence_seconds)
     else:
         raise ValueError("Unknown follow-up")
     record = {"kind": kind, "time": store.now(), "job_id": job_id, "operation_id":operation_id, "result": science.clean_json(result),
@@ -260,17 +348,21 @@ def followup(params, kind, job_id, operation_id=None):
     shutil.copy2(Path(__file__).resolve().parents[2]/'pyproject.toml',snapshot.parents[1]/'pyproject.toml')
     s.setdefault("followups", []).append(record)
     test = None
-    if kind == 'pixels' and result.get('status') == 'measured':
-        test = {'name':'Source localization','status':'inconclusive',
-                'detail':'Exploratory difference image and two aperture depths measured. Calibrated PRF fitting, pointing corrections and centroid uncertainty are still required to establish the host.'}
+    if kind == 'pixels':
+        test = {'name':'Source localization','status':'inconclusive' if result.get('status') == 'measured' else 'unavailable',
+                'detail':result.get('reason', 'Exploratory pixel result: '+result.get('status', 'unknown')+'. Calibrated PRF fitting, pointing corrections and centroid uncertainty are still required to establish the host.')}
     elif kind == 'gaia':
         test = {'name':'Nearby-source catalog','status':'measured',
-                'detail':f"{len(result['rows'])} Gaia DR3 sources returned within 120 arcsec. Proper-motion propagation, TESS-band dilution and unresolved companions remain untested."}
+                'detail':f"{len(result['rows'])} Gaia DR3 sources returned within 120 arcsec; truncated={result.get('truncated', 'unknown')}. Proper-motion propagation, TESS-band dilution and unresolved companions remain untested."}
     elif kind == 'injection':
-        test = {'name':'Injection recovery','status':'measured',
-                'detail':f"{result['recovered']}/{result['total']} box injections recovered at {ref.period:g} days and {ref.depth_ppm:g} ppm. Conditional sensitivity, not false-positive probability or survey completeness."}
+        test = {'name':'Injection recovery','status':'measured' if result['observable_trials'] else 'inconclusive',
+                'detail':f"{result['recovered']}/{result['observable_trials']} observable box injections recovered; {result['unobservable_trials']} unobservable trials. Period {ref.period:g} days, depth {ref.depth_ppm:g} ppm, duration {result['duration_hours']:g} h. Conditional sensitivity, not false-positive probability."}
+    elif kind == 'holdout':
+        test = {'name': 'Fixed-ephemeris holdout', 'status': result['status'], 'detail': result['interpretation']}
     if test:
         s['validation']['tests'] = [t for t in s['validation']['tests'] if t['name'] != test['name']] + [test]
+    s['classification'] = science.classify(s, r['catalogs'])
+    s['evidence_summary'] = science.evidence_summary(s)
     r["history"].append({"time": store.now(), "action": f"{kind} analysis on signal {ref.signal_index+1}", "job_id": job_id})
     store.save_investigation(r, r["id"])
     atomic_json(store.DATA / "artifacts" / r["id"] / "result.json", r)

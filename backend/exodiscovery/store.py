@@ -56,6 +56,13 @@ def init():
         CREATE TABLE IF NOT EXISTS messages (
           id INTEGER PRIMARY KEY, conversation_id TEXT, role TEXT, content TEXT, created TEXT);
         """)
+        c.execute('BEGIN IMMEDIATE')
+        columns = {r['name'] for r in c.execute('PRAGMA table_info(jobs)')}
+        for name, definition in [('priority', 'INTEGER NOT NULL DEFAULT 0'), ('queued_at', 'TEXT'), ('idempotency_key', 'TEXT')]:
+            if name not in columns:
+                c.execute(f'ALTER TABLE jobs ADD COLUMN {name} {definition}')
+        c.execute('UPDATE jobs SET queued_at=created WHERE queued_at IS NULL')
+        c.execute('CREATE UNIQUE INDEX IF NOT EXISTS jobs_submission_key ON jobs(idempotency_key) WHERE idempotency_key IS NOT NULL')
     (DATA / "artifacts").mkdir(exist_ok=True)
     (DATA / "observations").mkdir(exist_ok=True)
 
@@ -70,11 +77,19 @@ def decode(row):
     return d
 
 
-def create_job(kind, params):
+def create_job(kind, params, idempotency_key=None, priority=0):
     ident = uid()
     with db() as c:
-        c.execute("INSERT INTO jobs(id,kind,status,params,created,updated) VALUES(?,?,'queued',?,?,?)",
-                  (ident, kind, json.dumps(params), now(), now()))
+        c.execute('BEGIN IMMEDIATE')
+        if idempotency_key:
+            old = decode(c.execute('SELECT * FROM jobs WHERE idempotency_key=?', (idempotency_key,)).fetchone())
+            if old:
+                if old['kind'] != kind or old['params'] != params:
+                    raise ValueError('Submission key already used with different job parameters')
+                return old
+        stamp = now()
+        c.execute("INSERT INTO jobs(id,kind,status,params,created,updated,queued_at,idempotency_key,priority) VALUES(?,?,'queued',?,?,?,?,?,?)",
+                  (ident, kind, json.dumps(params), stamp, stamp, stamp, idempotency_key, priority))
     return get_job(ident)
 
 
@@ -89,7 +104,7 @@ def jobs():
 
 
 def update_job(ident, **kw):
-    allowed = {"status", "result", "error", "progress", "stage", "cancel", "attempts"}
+    allowed = {"status", "result", "error", "progress", "stage", "cancel", "attempts", "priority", "queued_at"}
     assert set(kw) <= allowed
     if "result" in kw:
         kw["result"] = json.dumps(kw["result"])
@@ -101,11 +116,34 @@ def update_job(ident, **kw):
 def claim_job():
     with db() as c:
         c.execute("BEGIN IMMEDIATE")
-        r = c.execute("SELECT id FROM jobs WHERE status='queued' AND cancel=0 ORDER BY created LIMIT 1").fetchone()
+        r = c.execute("SELECT id FROM jobs WHERE status='queued' AND cancel=0 ORDER BY priority DESC,queued_at,id LIMIT 1").fetchone()
         if not r:
             return None
         c.execute("UPDATE jobs SET status='running',attempts=attempts+1,updated=? WHERE id=?", (now(), r[0]))
     return get_job(r[0])
+
+
+def control_job(ident, action):
+    """Serialize state checks with worker claims so pausing cannot race execution."""
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        job = decode(c.execute('SELECT * FROM jobs WHERE id=?', (ident,)).fetchone())
+        if not job:
+            raise ValueError('Job not found')
+        stamp = now()
+        if action == 'cancel' and job['status'] in ('queued', 'running', 'paused'):
+            c.execute('UPDATE jobs SET cancel=1,status=?,updated=? WHERE id=?',
+                      ('running' if job['status'] == 'running' else 'cancelled', stamp, ident))
+        elif action == 'resume' and job['status'] in ('cancelled', 'failed', 'interrupted', 'paused'):
+            c.execute("UPDATE jobs SET cancel=0,status='queued',error=NULL,stage='Queued for resumption',queued_at=?,updated=? WHERE id=?", (stamp, stamp, ident))
+        elif action == 'pause' and job['status'] == 'queued':
+            c.execute("UPDATE jobs SET status='paused',stage='Paused before execution',updated=? WHERE id=?", (stamp, ident))
+        elif action in ('prioritize', 'defer') and job['status'] == 'queued':
+            c.execute('UPDATE jobs SET priority=?,queued_at=?,updated=? WHERE id=?',
+                      (10 if action == 'prioritize' else -10, stamp, stamp, ident))
+        else:
+            raise ValueError('Action not available for this job state')
+    return get_job(ident)
 
 
 def event(ident, message, progress=None):

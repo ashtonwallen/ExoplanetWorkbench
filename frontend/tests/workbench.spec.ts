@@ -39,3 +39,28 @@ test('narrow viewport has usable navigation and no horizontal document overflow'
   await expect(page.getByRole('button',{name:'New investigation',exact:true})).toBeVisible()
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy()
 })
+
+test('follow-up controls preserve requested science parameters without submitting real jobs', async ({page})=>{
+  const submissions:{kind:string;body:any}[]=[]
+  await page.route('**/api/followup/*',async route=>{
+    submissions.push({kind:route.request().url().split('/').pop()!,body:route.request().postDataJSON()})
+    await route.fulfill({json:{id:'0123456789abcdef',status:'queued'}})
+  })
+  await page.goto('/')
+  await page.getByRole('button',{name:/WASP-18 TIC/}).first().click()
+  await page.getByRole('button',{name:'Evidence',exact:true}).click()
+  await expect(page.getByText('Covered windows',{exact:true})).toBeVisible()
+  await expect(page.getByLabel('Pixel sector',{exact:true})).toBeVisible()
+  const sector=await page.getByLabel('Pixel sector',{exact:true}).inputValue()
+  await page.getByRole('button',{name:'Inspect target pixels'}).click()
+  await expect.poll(()=>submissions.length).toBe(1)
+  expect(submissions[0].body.sector).toBe(Number(sector))
+  await page.getByRole('button',{name:'6 injection trials'}).click()
+  await expect.poll(()=>submissions.length).toBe(2)
+  expect(submissions[1].body.duration_hours).toBeGreaterThan(0)
+  expect(submissions[1].body.depth_ppm).toBeGreaterThan(50)
+  await page.getByRole('button',{name:'Refresh catalog comparisons'}).click()
+  await expect.poll(()=>submissions.length).toBe(3)
+  expect(submissions[2].body.force_refresh).toBe(true)
+  await expect(page.getByRole('button',{name:'Test original ephemeris'})).toBeDisabled()
+})

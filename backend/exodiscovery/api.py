@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from . import store, pipeline, assistant, reports
-from .schemas import Analysis, Search, Batch, CandidateRef, Injection, Alias, AIConfig, Chat, ResearchGoal, TargetDiscovery
+from .schemas import Analysis, Search, Batch, CandidateRef, Injection, Alias, AIConfig, Chat, ResearchGoal, TargetDiscovery, Pixels, HeldOut, CatalogRefresh
 
 
 @asynccontextmanager
@@ -48,16 +48,21 @@ async def bad_request(request, exc):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.1.0",
+            'capabilities': ['submission_keys', 'queue_priority', 'product_preflight', 'catalog_refresh', 'fixed_ephemeris']}
 
 
 @app.get("/api/dashboard")
 def dashboard():
+    from .evidence import signal_groups
     inv = store.investigations()
     signals = [s for r in inv for s in r["signals"]]
+    grouped = signal_groups(inv)
     return {"stars_analyzed": len({r['target'].lower() for r in inv}),
             "observations": len(list((store.DATA / 'observations').glob('*.fits'))),
             "signals": len(signals), "unclassified": sum(s['classification'] == 'Interesting unclassified transit signal' for s in signals),
+            'suggested_signal_groups': grouped['group_count'],
+            'unclassified_groups': sum(any(m['classification'] == 'Interesting unclassified transit signal' for m in g['members']) for g in grouped['groups']),
             "known_recovered": len({(r['star'].get('tic_id'), m['record'].get('pl_name')) for r in inv for s in r['signals'] for m in s['catalog_matches'] if m['catalog'] == 'confirmed'}),
             "cache_mb": round(sum(p.stat().st_size for p in (store.DATA/'observations').glob('*.fits'))/1024**2, 1)}
 
@@ -82,33 +87,43 @@ def control(ident: str, action: str):
     item = store.get_job(ident)
     if not item:
         raise HTTPException(404, "Job not found")
-    if action == "cancel" and item["status"] in ("running", "queued"):
-        store.update_job(ident, cancel=1, **({"status": "cancelled"} if item["status"] == "queued" else {}))
-    elif action == "resume" and item["status"] in ("cancelled", "failed", "interrupted"):
-        store.update_job(ident, cancel=0, status="queued", error=None, stage="Queued for resumption")
-    else:
-        raise ValueError("Action not available for this job state")
-    return store.get_job(ident)
+    return store.control_job(ident, action)
+
+
+def enqueue(kind, cfg, request):
+    import re
+    key = request.headers.get('Idempotency-Key')
+    if key is not None and not re.fullmatch(r'[A-Za-z0-9_.:-]{1,120}', key):
+        raise ValueError('Invalid submission key')
+    priority = int(request.headers.get('X-Job-Priority', '0'))
+    if not -10 <= priority <= 10:
+        raise ValueError('Priority must be between -10 and 10')
+    return store.create_job(kind, cfg.model_dump(), idempotency_key=key, priority=priority)
 
 
 @app.post("/api/search")
-def search(cfg: Search):
-    return store.create_job("search", cfg.model_dump())
+def search(cfg: Search, request: Request):
+    return enqueue('search', cfg, request)
 
 
 @app.post("/api/tic")
-def tic(cfg: Search):
-    return store.create_job("tic", cfg.model_dump())
+def tic(cfg: Search, request: Request):
+    return enqueue('tic', cfg, request)
 
 
 @app.post("/api/analyze")
-def analyze(cfg: Analysis):
-    return store.create_job("analysis", cfg.model_dump())
+def analyze(cfg: Analysis, request: Request):
+    return enqueue('analysis', cfg, request)
+
+
+@app.post('/api/preflight')
+def preflight(cfg: Analysis, request: Request):
+    return enqueue('preflight', cfg, request)
 
 
 @app.post('/api/discover')
-def discover_targets(cfg: TargetDiscovery):
-    return store.create_job('discovery', cfg.model_dump())
+def discover_targets(cfg: TargetDiscovery, request: Request):
+    return enqueue('discovery', cfg, request)
 
 
 @app.post("/api/batch")
@@ -164,15 +179,15 @@ def export_json(ident: str):
 
 
 @app.post("/api/followup/{kind}")
-def followup(kind: str, body: dict):
-    if kind not in ("gaia", "pixels", "alias", "injection"):
+def followup(kind: str, body: dict, request: Request):
+    if kind not in ("gaia", "pixels", "alias", "injection", 'holdout', 'catalog'):
         raise ValueError("Unknown follow-up type")
-    cls = Injection if kind == "injection" else Alias if kind == "alias" else CandidateRef
+    cls = {'injection': Injection, 'alias': Alias, 'pixels': Pixels, 'holdout': HeldOut, 'catalog': CatalogRefresh}.get(kind, CandidateRef)
     cfg = cls(**body)
     r = store.investigation(cfg.investigation_id)
     if cfg.signal_index >= len(r["signals"]):
         raise ValueError("Signal index out of range")
-    return store.create_job(kind, cfg.model_dump())
+    return enqueue(kind, cfg, request)
 
 
 @app.get("/api/settings/ai")

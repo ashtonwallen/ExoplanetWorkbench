@@ -98,6 +98,11 @@ The server supplies an `investigate` prompt template and `exodiscovery://guide` 
 | `get_job`, `wait_for_job`, `list_jobs`, `control_job` | Inspect progress/results, wait briefly, cancel or resume scientific jobs |
 | `list_investigations`, `read_investigation` | Read persistent computed evidence, parameters, provenance and validation results |
 | `get_plot_data` | Paginated real numerical light-curve, periodogram or folded-curve previews, up to 2,000 points per page |
+| `preflight_products` | Check selected products and missing requested sectors without downloading photometry |
+| `refresh_catalogs` | Refresh all signal catalog matches in a saved investigation without rerunning BLS |
+| `test_fixed_ephemeris` | Measure a frozen ephemeris using disjoint sectors from a second saved investigation |
+| `read_signal_events` | Page through individual predicted-window measurements |
+| `list_signal_groups` | Suggest repeated same-target periods across investigations without merging evidence |
 | `get_report` | Computed findings plus HTML report, machine-readable JSON and reproduction ZIP URLs |
 
 Submission tools accept a typed `config` object. For example:
@@ -151,3 +156,20 @@ For the separately running HTTP MCP server:
 These checks use the SDK's real MCP client, not a paid LLM. `--recover` downloads or reuses original public FITS, executes the numerical pipeline, verifies the catalog association, and reads the resulting evidence/plot previews through MCP. Client-specific model planning quality still depends on the configured model.
 
 If tools report the workbench unavailable, start `python run.py`. If a newly added tool receives an unexpected response, restart the workbench after updating its code. If a submission times out, check `list_jobs` before retrying because it may already have been queued. Invalid scientific parameters, missing evidence, and quota exhaustion return MCP tool errors rather than fabricated results.
+
+
+## Reliable submissions and bounded evidence reads
+
+All submission tools accept optional top-level `idempotency_key` (1?120 letters, digits, `_ . : -`) and `priority` (-10 through 10). Generate a key per intended operation, persist it, and reuse the exact request/key after a lost response. The durable queue returns the original job; a key reused with different parameters is rejected. A same-process retry reuses its quota reservation. A reused key after an MCP restart consumes one reservation in that new process. Resuming a cancelled/failed job is an explicit separate action.
+
+`control_job` also supports `pause`, `prioritize`, and `defer` for **queued** jobs. Resume joins the queue at the current time. A running job must be cancelled before resuming later. The worker interrupts remote-search stages after 180 seconds without a stage change; numerical searches retain their overall job limit. `get_job` exposes time since the last progress update, configured job timeout and queue priority.
+
+`read_investigation` and `get_report` default to `detail="summary"`. Long lists retain at most 20 items, large pixel/BLS arrays are omitted, and `omitted_or_truncated` names every affected path and count. Use `detail="full"` for complete evidence (fit plotting arrays remain in exported JSON), or `read_signal_events` for event pages. Do not treat the first 20 events as the full record.
+
+`Analysis.allow_partial_sectors` defaults to false. Explicit requested sectors that are unavailable or excluded by `max_products` stop analysis with a reason. `preflight_products` returns the manifest before downloading. Setting `allow_partial_sectors=true` permits a partial analysis and records the omissions. Selection remains ascending sector order; choose scientifically appropriate sectors explicitly.
+
+`inspect_pixels` accepts `sector` and `cadence_seconds`; the default is the first investigation sector and 120 seconds. It inherits the investigation's quality setting. `injection_recovery` accepts `duration_hours`; omitting it preserves the saved signal duration. Durations outside the saved search range are rejected, never silently shortened. Inspect `observable_trials`, `unobservable_trials`, `observable_fraction`, and per-trial injected cadence/window counts. The legacy `fraction` remains recoveries divided by all requested trials.
+
+`refresh_catalogs` defaults to `force_refresh=true`, retains prior comparisons in history, and recomputes catalog matches/classifications for all signals. `discover_targets` can set `exclude_known_hosts=true`: it checks up to three times `limit` targets per region, skipping both matched hosts and unavailable comparisons. It may return fewer than `limit` targets and reports why.
+
+For `test_fixed_ephemeris`, pass `config={"investigation_id":"<original ID>","signal_index":0,"comparison_id":"<other saved ID>"}`. The target and mission must match and sectors must be disjoint. Original detrending settings and a frozen transit mask are applied to the comparison's raw quality-filtered flux. Period, epoch and duration are not optimized. This is a retrospective consistency test, not a blinded or uncertainty-calibrated confirmation.
